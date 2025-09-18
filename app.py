@@ -2,24 +2,15 @@ import streamlit as st
 import re
 from textblob import TextBlob
 import spacy
-import subprocess
-import sys
 from transformers import pipeline
 
-# --- DESCARGA AUTOMÁTICA DEL MODELO DE SPACY ---
-@st.cache_resource
-def load_spacy_model():
-    try:
-        nlp = spacy.load("es_core_news_sm")
-        return nlp
-    except OSError:
-        st.info("📥 Descargando modelo de español 'es_core_news_sm'... Esto puede tomar 1-2 minutos.")
-        subprocess.check_call([sys.executable, "-m", "spacy", "download", "es_core_news_sm"])
-        nlp = spacy.load("es_core_news_sm")
-        st.success("✅ Modelo de español descargado correctamente.")
-        return nlp
-
-nlp = load_spacy_model()
+# Cargar modelo de spaCy (ya debe estar instalado por requirements.txt)
+try:
+    nlp = spacy.load("es_core_news_sm")
+except OSError:
+    st.error("❌ No se pudo cargar el modelo de español 'es_core_news_sm'.")
+    st.info("⚠️ Esto suele pasar si el modelo no fue instalado correctamente. Por favor, asegúrate de que 'es_core_news_sm' esté en requirements.txt y que el repositorio sea público.")
+    st.stop()
 
 # Cargar detector de IA (modelo genérico de Hugging Face)
 @st.cache_resource
@@ -95,7 +86,7 @@ def analizar_texto(texto):
 st.set_page_config(page_title="🛡️ PhishingGuard", page_icon="🛡️", layout="centered")
 
 # --- LOGO ---
-st.image("https://i.ibb.co/8YqKJQk/phishingguard-logo.png", width=180)  # Logo público desde ImgBB
+st.image("https://i.ibb.co/8YqKJQk/phishingguard-logo.png", width=180)
 
 st.title("🛡️ PhishingGuard — Detecta mensajes de phishing generados por IA")
 st.markdown("""
