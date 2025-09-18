@@ -1,42 +1,31 @@
 import streamlit as st
 import re
 from textblob import TextBlob
-import spacy
 from transformers import pipeline
 
-# Cargar modelo de spaCy (ya debe estar instalado por requirements.txt)
-try:
-    nlp = spacy.load("es_core_news_sm")
-except OSError:
-    st.error("❌ No se pudo cargar el modelo de español 'es_core_news_sm'.")
-    st.info("⚠️ Esto suele pasar si el modelo no fue instalado correctamente. Por favor, asegúrate de que 'es_core_news_sm' esté en requirements.txt y que el repositorio sea público.")
-    st.stop()
-
-# Cargar detector de IA (modelo genérico de Hugging Face)
+# --- CARGAR DETECTOR DE IA (Hugging Face) ---
 @st.cache_resource
 def load_detector():
     return pipeline("text-classification", model="openai-community/gpt2", truncation=True, max_length=512)
 
 detector_ia = load_detector()
 
-# Función de análisis
+# --- FUNCIÓN DE ANÁLISIS SIN SPACY ---
 def analizar_texto(texto):
     if not texto.strip():
         return {"error": "Por favor ingresa un texto."}
 
-    resultados = {}
     alertas = []
 
     # 1. URLs sospechosas
     urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', texto)
-    resultados['urls'] = urls
     for url in urls:
         dominio = url.split("//")[-1].split("/")[0]
         if any(ext in dominio.lower() for ext in ["login", "verify", "secure", "update", "account", "bank", "paypal"]) and \
            not any(valid in dominio.lower() for valid in ["google.com", "facebook.com", "amazon.com", "youtube.com", "instagram.com"]):
             alertas.append(f"🚨 URL sospechosa: {url}")
 
-    # 2. Sentimiento (TextBlob)
+    # 2. Sentimiento (TextBlob) — NO NECESITA MODELO DESCARGABLE
     blob = TextBlob(texto)
     polaridad = blob.sentiment.polarity
     subjetividad = blob.sentiment.subjectivity
@@ -49,18 +38,18 @@ def analizar_texto(texto):
     if len(palabras_urgencia) >= 2:
         alertas.append(f"⚠️ Palabras de urgencia: {', '.join(palabras_urgencia)}")
 
-    # 4. Frases demasiado largas/formales
-    doc = nlp(texto)
-    frases_largas = len([sent for sent in doc.sents if len(sent) > 20])
+    # 4. Frases demasiado largas/formales (basado en longitud de oraciones)
+    oraciones = texto.split('.')
+    frases_largas = sum(1 for oracion in oraciones if len(oracion.split()) > 15)
     if frases_largas > 1:
-        alertas.append("⚠️ Demasiadas frases complejas — poco natural para un humano")
+        alertas.append("⚠️ Demasiadas frases largas y formales — poco natural para un humano")
 
-    # 5. Detección de IA
+    # 5. Detección de IA (Hugging Face)
     try:
         ia_pred = detector_ia(texto[:512])
         if ia_pred[0]['label'] == 'LABEL_1' and ia_pred[0]['score'] > 0.7:
             alertas.append("🚨 ALTA PROBABILIDAD DE SER GENERADO POR IA (como WormGPT)")
-    except Exception as e:
+    except Exception:
         alertas.append("ℹ️ No se pudo analizar con IA (texto muy largo o error técnico)")
 
     # Calcular nivel de riesgo
